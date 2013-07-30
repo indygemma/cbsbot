@@ -26,6 +26,27 @@
 (defn get-obj-event-behaviours [obj event]
   (get-in obj [:_behaviour_handlers event]))
 
+(defn register-behaviour [tpl]
+  (let [events-listened (:listens tpl)]
+    (swap! behaviour-index (fn [xs] (assoc xs (:name tpl) tpl)))
+      ))
+
+(defn get-behaviour [name]
+  (@behaviour-index name))
+
+(defn get-behaviours [obj-or-id]
+  (let [obj (get-obj-or-id obj-or-id)
+        behaviour-names (:behaviours obj)]
+    (map #(get-behaviour %) behaviour-names)))
+
+(defn get-registered-events [obj-or-id]
+  (let [obj (get-obj-or-id obj-or-id)
+        behaviours (get-behaviours obj-or-id)
+        events (reduce (fn [s behaviour]
+                         (reduce conj s (:listens behaviour)))
+                       #{} behaviours)]
+    events))
+
 (defn emit-event
   ; TODO: what about args?
   ([event]
@@ -135,29 +156,6 @@
 (defn destroy-objects []
   (doseq [obj-id (keys @object-ids)]
     (destroy obj-id)))
-
-(defn menu-item [& keyvals] nil)
-
-(defn register-behaviour [tpl]
-  (let [events-listened (:listens tpl)]
-    (swap! behaviour-index (fn [xs] (assoc xs (:name tpl) tpl)))
-      ))
-
-(defn get-behaviour [name]
-  (@behaviour-index name))
-
-(defn get-behaviours [obj-or-id]
-  (let [obj (get-obj-or-id obj-or-id)
-        behaviour-names (:behaviours obj)]
-    (map #(get-behaviour %) behaviour-names)))
-
-(defn get-registered-events [obj-or-id]
-  (let [obj (get-obj-or-id obj-or-id)
-        behaviours (get-behaviours obj-or-id)
-        events (reduce (fn [s behaviour]
-                         (reduce conj s (:listens behaviour)))
-                       #{} behaviours)]
-    events))
 
 (defn list-objects [] (apply concat (for [[k v] @object-instances] (vec v))))
 
