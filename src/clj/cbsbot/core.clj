@@ -4,6 +4,7 @@
 (def object-instances (atom {})) ; :object-name -> [obj1 id, obj2 id]
 (def object-ids (atom {}))  ; object-id -> obj
 (def behaviour-index (atom {})) ; :behaviour-name -> behaviour
+(def event-index (atom {})) ; event-name -> [obj1 id, obj2 id ...]
 
 (defn get-id [obj-instance]
   (:_id obj-instance))
@@ -25,17 +26,29 @@
 (defn get-obj-event-behaviours [obj event]
   (get-in obj [:_behaviour_handlers event]))
 
-(defn emit-event [event obj-or-id & args]
-  (let [obj (get-obj-or-id obj-or-id)
-        behaviours (get-obj-event-behaviours obj event)]
-    (dorun
-      (map #(apply % obj args) behaviours))))
+(defn emit-event
+  ; TODO: what about args?
+  ([event]
+     (let [obj-ids (@event-index event)]
+       (dorun
+         (map (fn [obj-id]
+                  (emit-event event obj-id))
+              obj-ids))))
+  ([event obj-or-id & args]
+    (let [obj (get-obj-or-id obj-or-id)
+          behaviours (get-obj-event-behaviours obj event)]
+      (dorun
+        (map #(apply % obj args) behaviours)))))
 
 (defn assign-behaviour [obj-or-id behaviour-name]
   (let [obj                (get-obj-or-id obj-or-id)
         behaviour-handlers (or (:_behaviour_handlers obj) {})
         behaviour-instance (@behaviour-index behaviour-name)
         events             (:listens behaviour-instance)
+        ; build mapping: {:event1 [obj-id], :event2 [obj-id], ...}
+        event-obj          (reduce (fn [h event]
+                                     (assoc h event [(get-id obj)]))
+                                     {} events)
         handler            (:do behaviour-instance)
         behaviour-handlers' (reduce (fn [hm event]
                                       (let [v (or [] (hm event))
@@ -44,7 +57,12 @@
                                     behaviour-handlers events)
         obj' (assoc obj :_behaviour_handlers behaviour-handlers')]
     (swap! object-ids (fn [xs]
-                        (assoc xs (get-id obj) obj')))))
+                        (assoc xs (get-id obj) obj')))
+    ; update event-index so we can execute this behaviour without specifying
+    ; the concrete object instance.
+    (swap! event-index (fn [ei]
+                         (merge-with concat ei event-obj)))
+    ))
 
 (defn assign-behaviours [obj-or-id]
   (let [obj (get-obj-or-id obj-or-id)
@@ -95,14 +113,22 @@
     (when obj
       (let [objname (:name obj)
             objid   (get-id obj)
-            obj-instances (@instance-var objname)]
+            obj-instances (@instance-var objname)
+            registered-events (get-registered-events obj)]
       (emit-event :destroy obj)
       (swap! instance-var (fn [xs]
                             (let [xs' (assoc xs (:name obj) (remove #(= % objid) obj-instances))]
                               xs')))
       (swap! ids-var (fn [xs]
                        (dissoc xs objid)))
-       ))))
+      ; cleanup event-index
+      (swap! event-index (fn [ei]
+                           (reduce (fn [ei' event]
+                                     (let [obj-ids (get ei' event)
+                                           obj-id-removed (remove #(= % objid) obj-ids)]
+                                       (assoc ei' event obj-id-removed)))
+                                   ei registered-events)))
+      ))))
 
 (defn destroy [obj-or-id] (destroy' obj-or-id object-ids object-instances))
 
@@ -120,7 +146,19 @@
 (defn get-behaviour [name]
   (@behaviour-index name))
 
-(defn list-behaviours [])
+(defn get-behaviours [obj-or-id]
+  (let [obj (get-obj-or-id obj-or-id)
+        behaviour-names (:behaviours obj)]
+    (map #(get-behaviour %) behaviour-names)))
+
+(defn get-registered-events [obj-or-id]
+  (let [obj (get-obj-or-id obj-or-id)
+        behaviours (get-behaviours obj-or-id)
+        events (reduce (fn [s behaviour]
+                         (reduce conj s (:listens behaviour)))
+                       #{} behaviours)]
+    events))
+
 (defn list-objects [] (apply concat (for [[k v] @object-instances] (vec v))))
 
 (defn select-objects

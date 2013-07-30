@@ -17,8 +17,10 @@
   :tags #{}
   :singleton true
   :events #{:sos.hello}
-  :behaviours [:set-read-only :cleanup]
+  :behaviours [:set-read-only :cleanup :on-multi1 :on-multi2]
   :gui simple-gui
+  :multi1-val false
+  :multi2-val false
   )
 
 (defbehaviour set-read-only
@@ -35,19 +37,30 @@
             (object/set-attr other :on-cleanup true)))
         ))
 
+(defbehaviour on-multi1
+  :listens #{:multi1}
+  :do (fn [this]
+        (object/set-attr this :multi1-val true)))
+
 (defobject another-object-singleton
-  :behaviours []
+  :behaviours [:on-multi2]
   :singleton true
   :events #{}
   :tags #{}
   :gui simple-gui
   :on-cleanup false
+  :multi2-val false
   )
 
 (defbehaviour respond-to-sos-hello
   :listens #{:sos.hello}
   :do (fn [this message]
         (object/set-attr this :hello-called message)))
+
+(defbehaviour on-multi2
+  :listens #{:multi2}
+  :do (fn [this]
+        (object/set-attr this :multi2-val true)))
 
 (deftest test-object
   (testing "has attributes after object creation"
@@ -85,6 +98,40 @@
       (is (= false (object/get-attr (object/select-object :another-object-singleton) :on-cleanup)))
       (object/destroy obj)
       (is (= true (object/get-attr (object/select-object :another-object-singleton) :on-cleanup)))
-    )))
+    ))
+
+  (testing "multiple object instance event dispatch"
+    (let [obj1 (object/create sample-object-singleton)
+          obj2 (object/create another-object-singleton)]
+      ; initial values are false
+      (is (= false (object/get-attr obj1 :multi1-val)))
+      (is (= false (object/get-attr obj1 :multi2-val)))
+      (is (= false (object/get-attr obj2 :multi2-val)))
+      (object/emit-event :multi1)
+      ; only obj1 is affected
+      (is (= true  (object/get-attr obj1 :multi1-val)))
+      (is (= false (object/get-attr obj1 :multi2-val)))
+      (is (= false (object/get-attr obj2 :multi2-val)))
+      (object/emit-event :multi2)
+      ; now both obj1 + obj2 are affected
+      (is (= true (object/get-attr obj1 :multi1-val)))
+      (is (= true (object/get-attr obj1 :multi2-val)))
+      (is (= true (object/get-attr obj2 :multi2-val)))
+      ))
+
+  (testing "helper functions"
+    (let [obj1 (object/create sample-object-singleton)
+          obj2 (object/create another-object-singleton)
+          behaviours1 (map #(:name %) (object/get-behaviours obj1))
+          behaviours2 (map #(:name %) (object/get-behaviours obj2))
+          events1 (object/get-registered-events obj1)
+          events2 (object/get-registered-events obj2)
+          ]
+      (is (= (:behaviours obj1) behaviours1))
+      (is (= (:behaviours obj2) behaviours2))
+      (is (= #{:init :destroy :multi1 :multi2} events1))
+      (is (= #{:multi2} events2))
+      ))
+  )
 
 (run-tests)
