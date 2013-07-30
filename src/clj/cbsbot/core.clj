@@ -6,6 +6,8 @@
 (def behaviour-index (atom {})) ; :behaviour-name -> behaviour
 (def event-index (atom {})) ; event-name -> [obj1 id, obj2 id ...]
 
+(def error (fn [x] (Exception. x)));*CLJSBUILD-REMOVE*;(def error (fn [x] (js/Error. x)))
+
 (defn get-id [obj-instance]
   (:_id obj-instance))
 
@@ -14,14 +16,18 @@
   [obj-id]
   (@object-ids obj-id))
 
-(defn- get-obj-or-id [obj-or-id]
+(defn valid-obj-or-id? [obj-or-id]
   (let [obj-id (get-id obj-or-id)]
     (if (nil? (get-id obj-or-id))
       (let [obj (lookup-object obj-or-id)]
-        (if (nil? obj)
-          (throw (str "Need either object instance or object id as first parameter. Got " obj-or-id " instead."))
-          obj))
+        (if (nil? obj) false obj))
       (lookup-object obj-id))))
+
+(defn- get-obj-or-id [obj-or-id]
+  (let [obj (valid-obj-or-id? obj-or-id)]
+    (if (= false obj)
+      (throw (error (str "Need either object instance or object id as first parameter. Got " obj-or-id " instead.")))
+      obj)))
 
 (defn get-obj-event-behaviours [obj event]
   (get-in obj [:_behaviour_handlers event]))
@@ -47,19 +53,25 @@
                        #{} behaviours)]
     events))
 
+(defn- emit-event-single
+  [event obj-or-id args]
+  (let [obj (get-obj-or-id obj-or-id)
+        behaviours (get-obj-event-behaviours obj event)]
+    (dorun
+      (map #(apply % obj args) behaviours))))
+
+(defn- emit-event-all
+  [event args]
+  (let [obj-ids (@event-index event)]
+    (dorun
+      (map (fn [obj-id]
+             (emit-event-single event obj-id args))
+           obj-ids))))
+
 (defn emit-event
-  ; TODO: what about args?
-  ([event]
-     (let [obj-ids (@event-index event)]
-       (dorun
-         (map (fn [obj-id]
-                  (emit-event event obj-id))
-              obj-ids))))
-  ([event obj-or-id & args]
-    (let [obj (get-obj-or-id obj-or-id)
-          behaviours (get-obj-event-behaviours obj event)]
-      (dorun
-        (map #(apply % obj args) behaviours)))))
+  [event & args]
+  (cond (false? (valid-obj-or-id? (first args))) (emit-event-all event args)
+        :else (emit-event-single event (first args) (rest args))))
 
 (defn assign-behaviour [obj-or-id behaviour-name]
   (let [obj                (get-obj-or-id obj-or-id)

@@ -59,8 +59,10 @@
 
 (defbehaviour on-multi2
   :listens #{:multi2}
-  :do (fn [this]
-        (object/set-attr this :multi2-val true)))
+  :do (fn [this & optional-val]
+        (if (empty? optional-val)
+          (object/set-attr this :multi2-val true)
+          (object/set-attr this :multi2-val (first optional-val)))))
 
 (deftest test-object
   (testing "has attributes after object creation"
@@ -117,6 +119,10 @@
       (is (= true (object/get-attr obj1 :multi1-val)))
       (is (= true (object/get-attr obj1 :multi2-val)))
       (is (= true (object/get-attr obj2 :multi2-val)))
+      ; now with arguments
+      (object/emit-event :multi2 :override-value)
+      (is (= :override-value (object/get-attr obj1 :multi2-val)))
+      (is (= :override-value (object/get-attr obj2 :multi2-val)))
       ))
 
   (testing "helper functions"
