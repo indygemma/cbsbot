@@ -30,7 +30,10 @@
       obj)))
 
 (defn get-obj-event-behaviours [obj event]
-  (get-in obj [:_behaviour_handlers event]))
+  (let [behaviours  (get-behaviours obj)
+        ; TODO: this filtering has linear complexity, improve?
+        behaviours' (filter #(contains? (:listens %) event) behaviours)]
+  behaviours'))
 
 (defn register-behaviour [tpl]
   (let [events-listened (:listens tpl)]
@@ -58,7 +61,7 @@
   (let [obj (get-obj-or-id obj-or-id)
         behaviours (get-obj-event-behaviours obj event)]
     (dorun
-      (map #(apply % obj args) behaviours))))
+      (map #(apply (:do %) obj args) behaviours))))
 
 (defn- emit-event-all
   [event args]
@@ -75,22 +78,15 @@
 
 (defn assign-behaviour [obj-or-id behaviour-name]
   (let [obj                (get-obj-or-id obj-or-id)
-        behaviour-handlers (or (:_behaviour_handlers obj) {})
         behaviour-instance (@behaviour-index behaviour-name)
         events             (:listens behaviour-instance)
+        obj'               (assoc obj :behaviours (conj (:behaviours obj) behaviour-name))
         ; build mapping: {:event1 [obj-id], :event2 [obj-id], ...}
         event-obj          (reduce (fn [h event]
                                      (assoc h event [(get-id obj)]))
-                                     {} events)
-        handler            (:do behaviour-instance)
-        behaviour-handlers' (reduce (fn [hm event]
-                                      (let [v (or [] (hm event))
-                                            v' (conj v handler)]
-                                        (assoc hm event v')))
-                                    behaviour-handlers events)
-        obj' (assoc obj :_behaviour_handlers behaviour-handlers')]
-    (swap! object-ids (fn [xs]
-                        (assoc xs (get-id obj) obj')))
+                                     {} events)]
+    (swap! object-ids (fn [oi]
+                        (assoc oi (get-id obj') obj')))
     ; update event-index so we can execute this behaviour without specifying
     ; the concrete object instance.
     (swap! event-index (fn [ei]
