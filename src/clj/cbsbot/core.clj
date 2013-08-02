@@ -29,12 +29,6 @@
       (throw (error (str "Need either object instance or object id as first parameter. Got " obj-or-id " instead.")))
       obj)))
 
-(defn get-obj-event-behaviours [obj event]
-  (let [behaviours  (get-behaviours obj)
-        ; TODO: this filtering has linear complexity, improve?
-        behaviours' (filter #(contains? (:listens %) event) behaviours)]
-  behaviours'))
-
 (defn register-behaviour [tpl]
   (let [events-listened (:listens tpl)]
     (swap! behaviour-index (fn [xs] (assoc xs (:name tpl) tpl)))
@@ -47,6 +41,12 @@
   (let [obj (get-obj-or-id obj-or-id)
         behaviour-names (:behaviours obj)]
     (map #(get-behaviour %) behaviour-names)))
+
+(defn get-obj-event-behaviours [obj event]
+  (let [behaviours  (get-behaviours obj)
+        ; TODO: this filtering has linear complexity, improve?
+        behaviours' (filter #(contains? (:listens %) event) behaviours)]
+  behaviours'))
 
 (defn get-registered-events [obj-or-id]
   (let [obj (get-obj-or-id obj-or-id)
