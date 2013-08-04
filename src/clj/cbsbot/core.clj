@@ -9,7 +9,9 @@
 (def error (fn [x] (Exception. x)));*CLJSBUILD-REMOVE*;(def error (fn [x] (js/Error. x)))
 
 (defn get-id [obj-instance]
-  (:_id obj-instance))
+  (try
+    (get obj-instance :_id)
+    (catch Exception e nil)))
 
 (defn lookup-object
   "lookup an object by its id"
@@ -18,7 +20,7 @@
 
 (defn valid-obj-or-id? [obj-or-id]
   (let [obj-id (get-id obj-or-id)]
-    (if (nil? (get-id obj-or-id))
+    (if (nil? obj-id)
       (let [obj (lookup-object obj-or-id)]
         (if (nil? obj) false obj))
       (lookup-object obj-id))))
@@ -80,7 +82,11 @@
   (let [obj                (get-obj-or-id obj-or-id)
         behaviour-instance (@behaviour-index behaviour-name)
         events             (:listens behaviour-instance)
-        obj'               (assoc obj :behaviours (conj (:behaviours obj) behaviour-name))
+        ; make sure this is unique, replace old one (TODO improve linear search here)
+        behaviours' (if (nil? (some #{behaviour-name} (:behaviours obj)))
+                     (conj (:behaviours obj) behaviour-name)
+                     (:behaviours obj))
+        obj'               (assoc obj :behaviours behaviours')
         ; build mapping: {:event1 [obj-id], :event2 [obj-id], ...}
         event-obj          (reduce (fn [h event]
                                      (assoc h event [(get-id obj)]))
