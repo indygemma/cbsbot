@@ -1,7 +1,8 @@
 (ns cbsbot.core-test
   (:use clojure.test)
-  (:require [cbsbot.core :as object]
-            [cbsbot.macros :refer [defgui defobject defbehaviour]]))
+  (:require [cbsbot.core :as object])
+  (#+clj :require #+cljs :require-macros
+    [cbsbot.macros :refer [defgui defobject defbehaviour]]))
 
 (defn wrap-setup [f]
   (object/destroy-objects)
@@ -138,6 +139,11 @@
       (is (= #{:init :destroy :multi1 :multi2} events1))
       (is (= #{:multi2} events2))
       ))
+
+  (testing "get-id only works on object instances"
+    (let [obj (object/create sample-object-singleton)]
+      (is (not= nil (object/get-id obj)))
+      (is (= nil (object/get-id "some-string")))))
   )
 
 (run-tests)

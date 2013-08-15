@@ -6,12 +6,19 @@
 (def behaviour-index (atom {})) ; :behaviour-name -> behaviour
 (def event-index (atom {})) ; event-name -> [obj1 id, obj2 id ...]
 
-(def error (fn [x] (Exception. x)));*CLJSBUILD-REMOVE*;(def error (fn [x] (js/Error. x)))
+#+clj
+(def error (fn [x] (Exception. x)))
+#+cljs
+(def error (fn [x] (js/Error. x)))
 
 (defn get-id [obj-instance]
   (try
     (get obj-instance :_id)
-    (catch Exception e nil)))
+    #+clj
+    (catch Exception e nil)
+    #+cljs
+    (catch js/Error e nil)
+    ))
 
 (defn lookup-object
   "lookup an object by its id"
