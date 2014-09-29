@@ -178,7 +178,7 @@
   (doseq [obj-id (keys @object-ids)]
     (destroy obj-id)))
 
-(defn list-objects [] (apply concat (for [[k v] @object-instances] (vec v))))
+(defn list-objects [] (for [[k v] @object-ids] v))
 
 (defn select-objects
   [obj-name]
@@ -205,8 +205,19 @@
                         (assoc xs (get-id obj) obj')))
     obj'))
 
+(defn set-attrs
+  [obj-or-id m]
+  (let [obj (get-obj-or-id obj-or-id)
+        obj' (merge obj m)]
+    (swap! object-ids (fn [x]
+                        (assoc x (get-id obj) obj')))
+    obj'))
+
 (defn tag-behaviours [tag behaviours])
 
 (defn select-gui [obj-instance]
   (:_gui-instance obj-instance))
 
+(let [o {:fill 2 :what "true"}]
+  (->> (map vector (keys o) (vals o))
+       ((fn [xs] (map #(apply hash-map %) xs)))))

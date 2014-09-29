@@ -144,6 +144,18 @@
     (let [obj (object/create sample-object-singleton)]
       (is (not= nil (object/get-id obj)))
       (is (= nil (object/get-id "some-string")))))
+
+  (testing "bulk attribute setting"
+    (let [obj (object/create sample-object-singleton)
+          obj' (object/set-attrs obj {:multi1-val false :multi2-val false})]
+      ; the values are initialized as false
+      (is (= false (object/get-attr obj :multi1-val)))
+      (is (= false (object/get-attr obj :multi2-val)))
+      ; we are setting them to false via set-attrs
+      (is (= false (:multi1-val obj')))
+      (is (= false (:multi2-val obj')))
+    ))
+
   )
 
 (run-tests)
